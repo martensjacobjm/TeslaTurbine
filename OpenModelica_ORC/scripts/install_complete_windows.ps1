@@ -81,94 +81,170 @@ Write-Host "====================================================" -ForegroundCol
 Write-Host ""
 
 # Kontrollera om OpenModelica redan ar installerat
-$OMVersion = "1.23.0"
+$OMVersion = "1.24.0"
 $OMCPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin\omc.exe"
 $OMEditPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin\OMEdit.exe"
 
+# Alternativa installationsplatser (aldre versioner eller generisk installation)
+$OMCPathAlt = "C:\Program Files\OpenModelica1.23.0-64bit\bin\omc.exe"
+$OMEditPathAlt = "C:\Program Files\OpenModelica1.23.0-64bit\bin\OMEdit.exe"
+$OMCPathGeneric = "C:\OpenModelica\bin\omc.exe"
+$OMEditPathGeneric = "C:\OpenModelica\bin\OMEdit.exe"
+
 $skipOMInstall = $false
 
+# Kolla om OpenModelica redan ar installerat (flera mojliga platser)
 if (Test-Path $OMCPath) {
-    Write-Host "OpenModelica verkar redan vara installerat" -ForegroundColor Green
+    Write-Host "OpenModelica $OMVersion finns redan installerat" -ForegroundColor Green
     Write-Host "  Plats: $OMCPath" -ForegroundColor Gray
     Write-Host ""
-
     $reinstall = Read-Host "Vill du installera om? (j/N)"
     if ($reinstall -ne "j" -and $reinstall -ne "J") {
         Write-Host "Hoppar over OpenModelica-installation" -ForegroundColor Yellow
         Write-Host ""
         $skipOMInstall = $true
     }
+} elseif (Test-Path $OMCPathAlt) {
+    Write-Host "OpenModelica 1.23.0 finns redan installerat" -ForegroundColor Green
+    Write-Host "  Plats: $OMCPathAlt" -ForegroundColor Gray
+    Write-Host ""
+    $upgrade = Read-Host "Vill du uppgradera till version $OMVersion? (j/N)"
+    if ($upgrade -ne "j" -and $upgrade -ne "J") {
+        Write-Host "Anvander befintlig installation" -ForegroundColor Yellow
+        Write-Host ""
+        $skipOMInstall = $true
+        # Uppdatera sokvagar till den befintliga installationen
+        $OMCPath = $OMCPathAlt
+        $OMEditPath = $OMEditPathAlt
+    }
+} elseif (Test-Path $OMCPathGeneric) {
+    Write-Host "OpenModelica finns redan installerat" -ForegroundColor Green
+    Write-Host "  Plats: $OMCPathGeneric" -ForegroundColor Gray
+    Write-Host ""
+    $reinstall = Read-Host "Vill du installera version $OMVersion? (j/N)"
+    if ($reinstall -ne "j" -and $reinstall -ne "J") {
+        Write-Host "Anvander befintlig installation" -ForegroundColor Yellow
+        Write-Host ""
+        $skipOMInstall = $true
+        # Uppdatera sokvagar till den befintliga installationen
+        $OMCPath = $OMCPathGeneric
+        $OMEditPath = $OMEditPathGeneric
+    }
 }
 
 if (-not $skipOMInstall) {
-    Write-Host "Laddar ner OpenModelica..." -ForegroundColor Yellow
+    Write-Host "Laddar ner OpenModelica $OMVersion..." -ForegroundColor Yellow
     Write-Host ""
 
-    # URL till senaste OpenModelica Windows-installer
-    $OMInstallerURL = "https://github.com/OpenModelica/OpenModelica/releases/download/v$OMVersion/OpenModelica-v$OMVersion-64bit.exe"
+    # Flera mojliga nedladdningskallor
+    $downloadURLs = @(
+        "https://github.com/OpenModelica/OpenModelica/releases/download/v$OMVersion/OpenModelica-v$OMVersion-64bit.exe",
+        "https://build.openmodelica.org/omc/builds/windows/releases/$OMVersion/OpenModelica-v$OMVersion-64bit.exe"
+    )
+
     $OMInstallerPath = Join-Path $env:TEMP "OpenModelica-installer.exe"
+    $downloadSuccess = $false
 
-    try {
-        # Ladda ner installer med retry-logik
-        Write-Host "  Hamtar fran: $OMInstallerURL" -ForegroundColor Gray
-        Download-WithRetry -Url $OMInstallerURL -OutFile $OMInstallerPath
-        Write-Host "  Nedladdning klar" -ForegroundColor Green
-        Write-Host ""
+    # Prova flera nedladdningskallor
+    foreach ($url in $downloadURLs) {
+        if ($downloadSuccess) { break }
 
-        # Kor installer (tyst installation)
-        Write-Host "  Installerar OpenModelica..." -ForegroundColor Yellow
-        Write-Host "  (Detta kan ta nagra minuter)" -ForegroundColor Gray
-
-        $installArgs = @(
-            "/VERYSILENT",
-            "/SUPPRESSMSGBOXES",
-            "/NORESTART",
-            "/DIR=C:\Program Files\OpenModelica$OMVersion-64bit"
-        )
-
-        Start-Process -FilePath $OMInstallerPath -ArgumentList $installArgs -Wait
-
-        Write-Host "  OpenModelica installerat!" -ForegroundColor Green
-        Write-Host ""
-
-        # Ta bort installer
-        Remove-Item $OMInstallerPath -ErrorAction SilentlyContinue
-
-        # Verifiera installation
-        if (Test-Path $OMCPath) {
-            Write-Host "Installation verifierad" -ForegroundColor Green
-
-            # Lagg till i PATH
-            $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-            $omBinPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin"
-
-            if ($currentPath -notlike "*$omBinPath*") {
-                Write-Host "  Lagger till i PATH..." -ForegroundColor Yellow
-                [Environment]::SetEnvironmentVariable(
-                    "Path",
-                    "$currentPath;$omBinPath",
-                    "Machine"
-                )
-                Write-Host "  PATH uppdaterad" -ForegroundColor Green
-            }
-        } else {
-            Write-Host "Installation misslyckades!" -ForegroundColor Red
-            Write-Host "  Forsok installera manuellt fran: https://openmodelica.org/download/" -ForegroundColor Yellow
-            exit 1
+        try {
+            Write-Host "  Provar: $url" -ForegroundColor Gray
+            Download-WithRetry -Url $url -OutFile $OMInstallerPath
+            $downloadSuccess = $true
+            Write-Host "  Nedladdning klar!" -ForegroundColor Green
+            Write-Host ""
+            break
         }
+        catch {
+            Write-Host "  Misslyckades: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host ""
+        }
+    }
 
-    } catch {
-        Write-Host "Fel vid installation av OpenModelica: $_" -ForegroundColor Red
+    if (-not $downloadSuccess) {
+        Write-Host "Kunde inte ladda ner automatiskt. Manuell installation kravs." -ForegroundColor Red
         Write-Host ""
-        Write-Host "Alternativ manuell installation:" -ForegroundColor Yellow
-        Write-Host "  1. Ga till: https://openmodelica.org/download/" -ForegroundColor White
-        Write-Host "  2. Ladda ner Windows-installer" -ForegroundColor White
-        Write-Host "  3. Kor installationen" -ForegroundColor White
+        Write-Host "ALTERNATIV 1 - Ladda ner fran officiell webbplats:" -ForegroundColor Yellow
+        Write-Host "  1. Oppna: https://openmodelica.org/download/download-windows/" -ForegroundColor White
+        Write-Host "  2. Ladda ner senaste 64-bit installer" -ForegroundColor White
+        Write-Host "  3. Installera OpenModelica" -ForegroundColor White
         Write-Host "  4. Kor detta script igen" -ForegroundColor White
         Write-Host ""
+        Write-Host "ALTERNATIV 2 - Fortsatt om redan installerat:" -ForegroundColor Yellow
+        $manualInstall = Read-Host "Har du installerat OpenModelica manuellt? Fortsatt? (j/N)"
+        if ($manualInstall -ne "j" -and $manualInstall -ne "J") {
+            exit 1
+        } else {
+            # Fraga efter installationsplats
+            Write-Host ""
+            Write-Host "Ange installationsplats for OMEdit.exe" -ForegroundColor Yellow
+            Write-Host "(Tryck Enter for standard: C:\Program Files\OpenModelica$OMVersion-64bit\bin\OMEdit.exe)" -ForegroundColor Gray
+            $customPath = Read-Host "Plats"
+            if ([string]::IsNullOrWhiteSpace($customPath)) {
+                $customPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin\OMEdit.exe"
+            }
 
-        $continue = Read-Host "Har du installerat OpenModelica manuellt? Fortsatt? (j/N)"
-        if ($continue -ne "j" -and $continue -ne "J") {
+            if (Test-Path $customPath) {
+                $OMEditPath = $customPath
+                $OMCPath = Join-Path (Split-Path $customPath) "omc.exe"
+                Write-Host "Anvander: $OMEditPath" -ForegroundColor Green
+                $skipOMInstall = $true
+            } else {
+                Write-Host "Filen finns inte: $customPath" -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
+
+    if ($downloadSuccess) {
+        try {
+            # Kor installer (tyst installation)
+            Write-Host "  Installerar OpenModelica..." -ForegroundColor Yellow
+            Write-Host "  (Detta kan ta nagra minuter)" -ForegroundColor Gray
+
+            $installArgs = @(
+                "/VERYSILENT",
+                "/SUPPRESSMSGBOXES",
+                "/NORESTART",
+                "/DIR=C:\Program Files\OpenModelica$OMVersion-64bit"
+            )
+
+            Start-Process -FilePath $OMInstallerPath -ArgumentList $installArgs -Wait
+
+            Write-Host "  OpenModelica installerat!" -ForegroundColor Green
+            Write-Host ""
+
+            # Ta bort installer
+            Remove-Item $OMInstallerPath -ErrorAction SilentlyContinue
+
+            # Verifiera installation
+            if (Test-Path $OMCPath) {
+                Write-Host "Installation verifierad" -ForegroundColor Green
+
+                # Lagg till i PATH
+                $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+                $omBinPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin"
+
+                if ($currentPath -notlike "*$omBinPath*") {
+                    Write-Host "  Lagger till i PATH..." -ForegroundColor Yellow
+                    [Environment]::SetEnvironmentVariable(
+                        "Path",
+                        "$currentPath;$omBinPath",
+                        "Machine"
+                    )
+                    Write-Host "  PATH uppdaterad" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "Installation misslyckades!" -ForegroundColor Red
+                Write-Host "  Forsok installera manuellt fran: https://openmodelica.org/download/" -ForegroundColor Yellow
+                exit 1
+            }
+        } catch {
+            Write-Host "Fel vid installation: $_" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "Forsok installera manuellt fran: https://openmodelica.org/download/" -ForegroundColor Yellow
             exit 1
         }
     }
