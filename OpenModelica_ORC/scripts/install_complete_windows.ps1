@@ -8,7 +8,7 @@
 #
 # Användning:
 #   1. Öppna PowerShell som administratör
-#   2. Kör: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+#   2. Kör: Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
 #   3. Kör: .\install_complete_windows.ps1
 # =============================================================================
 
@@ -44,8 +44,11 @@ Write-Host "====================================================" -ForegroundCol
 Write-Host ""
 
 # Kontrollera om OpenModelica redan är installerat
-$OMCPath = "C:\Program Files\OpenModelica1.23.0-64bit\bin\omc.exe"
-$OMEditPath = "C:\Program Files\OpenModelica1.23.0-64bit\bin\OMEdit.exe"
+$OMVersion = "1.23.0"
+$OMCPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin\omc.exe"
+$OMEditPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin\OMEdit.exe"
+
+$skipOMInstall = $false
 
 if (Test-Path $OMCPath) {
     Write-Host "✓ OpenModelica verkar redan vara installerat" -ForegroundColor Green
@@ -56,90 +59,89 @@ if (Test-Path $OMCPath) {
     if ($reinstall -ne "j" -and $reinstall -ne "J") {
         Write-Host "Hoppar över OpenModelica-installation" -ForegroundColor Yellow
         Write-Host ""
-        goto LibraryInstallation
+        $skipOMInstall = $true
     }
 }
 
-Write-Host "Laddar ner OpenModelica..." -ForegroundColor Yellow
-Write-Host ""
-
-# URL till senaste OpenModelica Windows-installer
-$OMVersion = "1.23.0"
-$OMInstallerURL = "https://github.com/OpenModelica/OpenModelica/releases/download/v1.23.0/OpenModelica-v1.23.0-64bit.exe"
-$OMInstallerPath = Join-Path $env:TEMP "OpenModelica-installer.exe"
-
-try {
-    # Ladda ner installer
-    Write-Host "  Hämtar från: $OMInstallerURL" -ForegroundColor Gray
-    Invoke-WebRequest -Uri $OMInstallerURL -OutFile $OMInstallerPath -UseBasicParsing
-    Write-Host "  ✓ Nedladdning klar" -ForegroundColor Green
+if (-not $skipOMInstall) {
+    Write-Host "Laddar ner OpenModelica..." -ForegroundColor Yellow
     Write-Host ""
 
-    # Kör installer (tyst installation)
-    Write-Host "  Installerar OpenModelica..." -ForegroundColor Yellow
-    Write-Host "  (Detta kan ta några minuter)" -ForegroundColor Gray
+    # URL till senaste OpenModelica Windows-installer
+    $OMInstallerURL = "https://github.com/OpenModelica/OpenModelica/releases/download/v$OMVersion/OpenModelica-v$OMVersion-64bit.exe"
+    $OMInstallerPath = Join-Path $env:TEMP "OpenModelica-installer.exe"
 
-    $installArgs = @(
-        "/VERYSILENT",
-        "/SUPPRESSMSGBOXES",
-        "/NORESTART",
-        "/DIR=C:\Program Files\OpenModelica$OMVersion-64bit"
-    )
+    try {
+        # Ladda ner installer
+        Write-Host "  Hämtar från: $OMInstallerURL" -ForegroundColor Gray
+        Invoke-WebRequest -Uri $OMInstallerURL -OutFile $OMInstallerPath -UseBasicParsing
+        Write-Host "  ✓ Nedladdning klar" -ForegroundColor Green
+        Write-Host ""
 
-    Start-Process -FilePath $OMInstallerPath -ArgumentList $installArgs -Wait
+        # Kör installer (tyst installation)
+        Write-Host "  Installerar OpenModelica..." -ForegroundColor Yellow
+        Write-Host "  (Detta kan ta några minuter)" -ForegroundColor Gray
 
-    Write-Host "  ✓ OpenModelica installerat!" -ForegroundColor Green
-    Write-Host ""
+        $installArgs = @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=C:\Program Files\OpenModelica$OMVersion-64bit"
+        )
 
-    # Ta bort installer
-    Remove-Item $OMInstallerPath -ErrorAction SilentlyContinue
+        Start-Process -FilePath $OMInstallerPath -ArgumentList $installArgs -Wait
 
-    # Verifiera installation
-    if (Test-Path $OMCPath) {
-        Write-Host "✓ Installation verifierad" -ForegroundColor Green
+        Write-Host "  ✓ OpenModelica installerat!" -ForegroundColor Green
+        Write-Host ""
 
-        # Lägg till i PATH
-        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        $omBinPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin"
+        # Ta bort installer
+        Remove-Item $OMInstallerPath -ErrorAction SilentlyContinue
 
-        if ($currentPath -notlike "*$omBinPath*") {
-            Write-Host "  Lägger till i PATH..." -ForegroundColor Yellow
-            [Environment]::SetEnvironmentVariable(
-                "Path",
-                "$currentPath;$omBinPath",
-                "Machine"
-            )
-            Write-Host "  ✓ PATH uppdaterad" -ForegroundColor Green
+        # Verifiera installation
+        if (Test-Path $OMCPath) {
+            Write-Host "✓ Installation verifierad" -ForegroundColor Green
+
+            # Lägg till i PATH
+            $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $omBinPath = "C:\Program Files\OpenModelica$OMVersion-64bit\bin"
+
+            if ($currentPath -notlike "*$omBinPath*") {
+                Write-Host "  Lägger till i PATH..." -ForegroundColor Yellow
+                [Environment]::SetEnvironmentVariable(
+                    "Path",
+                    "$currentPath;$omBinPath",
+                    "Machine"
+                )
+                Write-Host "  ✓ PATH uppdaterad" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "✗ Installation misslyckades!" -ForegroundColor Red
+            Write-Host "  Försök installera manuellt från: https://openmodelica.org/download/" -ForegroundColor Yellow
+            exit 1
         }
-    } else {
-        Write-Host "✗ Installation misslyckades!" -ForegroundColor Red
-        Write-Host "  Försök installera manuellt från: https://openmodelica.org/download/" -ForegroundColor Yellow
-        exit 1
+
+    } catch {
+        Write-Host "✗ Fel vid installation av OpenModelica: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Alternativ manuell installation:" -ForegroundColor Yellow
+        Write-Host "  1. Gå till: https://openmodelica.org/download/" -ForegroundColor White
+        Write-Host "  2. Ladda ner Windows-installer" -ForegroundColor White
+        Write-Host "  3. Kör installationen" -ForegroundColor White
+        Write-Host "  4. Kör detta script igen" -ForegroundColor White
+        Write-Host ""
+
+        $continue = Read-Host "Har du installerat OpenModelica manuellt? Fortsätt? (j/N)"
+        if ($continue -ne "j" -and $continue -ne "J") {
+            exit 1
+        }
     }
 
-} catch {
-    Write-Host "✗ Fel vid installation av OpenModelica: $_" -ForegroundColor Red
     Write-Host ""
-    Write-Host "Alternativ manuell installation:" -ForegroundColor Yellow
-    Write-Host "  1. Gå till: https://openmodelica.org/download/" -ForegroundColor White
-    Write-Host "  2. Ladda ner Windows-installer" -ForegroundColor White
-    Write-Host "  3. Kör installationen" -ForegroundColor White
-    Write-Host "  4. Kör detta script igen" -ForegroundColor White
-    Write-Host ""
-
-    $continue = Read-Host "Har du installerat OpenModelica manuellt? Fortsätt? (j/N)"
-    if ($continue -ne "j" -and $continue -ne "J") {
-        exit 1
-    }
 }
-
-Write-Host ""
 
 # =============================================================================
 # STEG 2: SKAPA PROJEKTKATALOGER
 # =============================================================================
-
-:LibraryInstallation
 
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host "STEG 2: Skapa projektkataloger" -ForegroundColor Green
@@ -289,26 +291,29 @@ Write-Host "Kopierar projekt från: $SourceProjectPath" -ForegroundColor Yellow
 Write-Host "Till: $ProjectPath" -ForegroundColor Yellow
 Write-Host ""
 
+$skipProjectCopy = $false
+
 if (Test-Path $ProjectPath) {
     $overwrite = Read-Host "Projektkatalog finns redan. Skriv över? (j/N)"
     if ($overwrite -eq "j" -or $overwrite -eq "J") {
         Remove-Item -Recurse -Force $ProjectPath
     } else {
         Write-Host "Behåller befintlig projektkatalog" -ForegroundColor Yellow
-        goto FinishInstallation
+        $skipProjectCopy = $true
     }
 }
 
-# Kopiera hela projektet
-Copy-Item -Path $SourceProjectPath -Destination $ProjectPath -Recurse -Force
-Write-Host "✓ Projekt kopierat" -ForegroundColor Green
+if (-not $skipProjectCopy) {
+    # Kopiera hela projektet
+    Copy-Item -Path $SourceProjectPath -Destination $ProjectPath -Recurse -Force
+    Write-Host "✓ Projekt kopierat" -ForegroundColor Green
+}
+
 Write-Host ""
 
 # =============================================================================
 # STEG 6: SKAPA GENVÄGAR
 # =============================================================================
-
-:FinishInstallation
 
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host "STEG 6: Skapa genvägar" -ForegroundColor Green
