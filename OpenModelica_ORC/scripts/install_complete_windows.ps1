@@ -15,6 +15,43 @@
 # Krav administratorsrattigheter for installation
 #Requires -RunAsAdministrator
 
+# =============================================================================
+# FUNKTIONER
+# =============================================================================
+
+# Funktion for robust nedladdning med retry-logik
+function Download-WithRetry {
+    param(
+        [string]$Url,
+        [string]$OutFile,
+        [int]$MaxRetries = 4
+    )
+
+    $delays = @(2, 4, 8, 16)  # Exponential backoff i sekunder
+
+    for ($attempt = 0; $attempt -lt $MaxRetries; $attempt++) {
+        try {
+            if ($attempt -gt 0) {
+                $delay = $delays[$attempt - 1]
+                Write-Host "    Forsoker igen om $delay sekunder..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+                Write-Host "    Forsok $($attempt + 1) av $MaxRetries" -ForegroundColor Yellow
+            }
+
+            Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -TimeoutSec 300
+            return $true
+        }
+        catch {
+            if ($attempt -eq ($MaxRetries - 1)) {
+                throw $_
+            }
+            Write-Host "    Natlverksfel: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+
+    return $false
+}
+
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "  KOMPLETT OpenModelica ORC Installation" -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
@@ -72,9 +109,9 @@ if (-not $skipOMInstall) {
     $OMInstallerPath = Join-Path $env:TEMP "OpenModelica-installer.exe"
 
     try {
-        # Ladda ner installer
+        # Ladda ner installer med retry-logik
         Write-Host "  Hamtar fran: $OMInstallerURL" -ForegroundColor Gray
-        Invoke-WebRequest -Uri $OMInstallerURL -OutFile $OMInstallerPath -UseBasicParsing
+        Download-WithRetry -Url $OMInstallerURL -OutFile $OMInstallerPath
         Write-Host "  Nedladdning klar" -ForegroundColor Green
         Write-Host ""
 
@@ -218,8 +255,8 @@ foreach ($lib in $libraries.Keys) {
     $extractPath = Join-Path $LibraryPath $lib
 
     try {
-        # Ladda ner
-        Invoke-WebRequest -Uri $libraries[$lib].url -OutFile $zipPath -UseBasicParsing
+        # Ladda ner med retry-logik
+        Download-WithRetry -Url $libraries[$lib].url -OutFile $zipPath
         Write-Host "    Nedladdning klar" -ForegroundColor Green
 
         # Packa upp
