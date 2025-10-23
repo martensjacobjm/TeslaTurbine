@@ -108,11 +108,58 @@ Tesla-turbinen är en **bladlös turbin** där ångan flödar mellan roterande s
 
 ## 💾 Installation
 
-### Steg 1: Installera OpenModelica
+### 🚀 SNABBINSTALLATION (Windows)
 
-#### Windows:
+**ETT ENDA SCRIPT INSTALLERAR ALLT!**
+
+Detta komplettar installations-script gör ALLT åt dig:
+- ✅ Installerar OpenModelica själv
+- ✅ Laddar ner alla 5 Modelica-bibliotek
+- ✅ Kopierar projektet till rätt plats
+- ✅ Konfigurerar sökvägar
+- ✅ Skapar genvägar på skrivbordet
+
+**Steg-för-steg:**
+
+1. **Öppna PowerShell som administratör**
+   - Högerklicka på Start → "Windows PowerShell (Admin)"
+
+2. **Tillåt scripts att köras** (engångsinställning):
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+3. **Navigera till script-mappen**:
+   ```powershell
+   cd "C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelica_ORC\scripts"
+   ```
+
+4. **Kör installations-scriptet**:
+   ```powershell
+   .\install_complete_windows.ps1
+   ```
+
+5. **Vänta medan allt installeras** (5-10 minuter)
+
+6. **Klart!** Dubbelklicka på "OMEdit - ORC Project" på skrivbordet
+
+**Projektsökvägar efter installation:**
+- Bas: `C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\`
+- Bibliotek: `.../Simulering System/OpenModelicaLibs/`
+- Projekt: `.../Simulering System/OpenModelica_ORC/`
+
+---
+
+### 📦 Alternativ: Manuell installation
+
+Om du föredrar att installera steg för steg:
+
+#### Steg 1: Installera OpenModelica
+
+**Windows:**
 ```powershell
 # Ladda ner från: https://openmodelica.org/download/
+# Välj: OpenModelica-v1.23.0-64bit.exe
 # Kör installationsprogrammet
 ```
 
@@ -127,17 +174,15 @@ sudo apt-get install openmodelica omlib-*
 brew install openmodelica
 ```
 
-### Steg 2: Installera Modelica-bibliotek
+#### Steg 2: Installera Modelica-bibliotek
 
-Använd de automatiserade scripten:
-
-#### Windows (PowerShell):
+**Windows (PowerShell):**
 ```powershell
-cd OpenModelica_ORC/scripts
+cd "C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelica_ORC\scripts"
 .\install_libraries_windows.ps1
 ```
 
-#### Linux/macOS (Bash):
+**Linux/macOS (Bash):**
 ```bash
 cd OpenModelica_ORC/scripts
 chmod +x install_libraries_linux.sh
@@ -154,41 +199,71 @@ chmod +x install_libraries_linux.sh
 
 ### Steg 3: Ladda biblioteken i OpenModelica
 
+**Om du använder komplett-scriptet är detta redan gjort!**
+
+**Manuell konfiguration (om behövs):**
+
 **I OMEdit:**
 ```
 1. Tools → Options → Libraries
-2. Lägg till: ~/Downloads/OpenModelicaLibs
+2. Lägg till: C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelicaLibs
 3. Klicka "Load Library" för varje bibliotek
 ```
 
 **Med script:**
 ```modelica
 loadModel(Modelica);
-loadFile("~/Downloads/OpenModelicaLibs/ExternalMedia/package.mo");
-loadFile("~/Downloads/OpenModelicaLibs/ThermoCycle/package.mo");
-loadFile("~/Downloads/OpenModelicaLibs/Buildings/package.mo");
+loadFile("C:/Users/marte/OneDrive - Dala VS Värme & Sanitet/Privat/Simulering System/OpenModelicaLibs/ExternalMedia/package.mo");
+loadFile("C:/Users/marte/OneDrive - Dala VS Värme & Sanitet/Privat/Simulering System/OpenModelicaLibs/ThermoCycle/package.mo");
+loadFile("C:/Users/marte/OneDrive - Dala VS Värme & Sanitet/Privat/Simulering System/OpenModelicaLibs/Buildings/package.mo");
 ```
 
 ---
 
 ## 🚀 Användning
 
-### Metod 1: Grafiskt i OMEdit
+### ⚡ SNABBSTART (Efter installation)
+
+1. **Dubbelklicka på genvägen** "OMEdit - ORC Project" på skrivbordet
+2. **File → Open** → Välj `CompleteORCSystem.mo` från:
+   ```
+   C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelica_ORC\models\Examples\CompleteORCSystem.mo
+   ```
+3. **Klicka "Check Model"** (verifierar syntaxen)
+4. **Klicka "Simulate"** (startar 24-timmars simulering)
+5. **Plotting** → Välj variabler att visa (t.ex. `W_net`, `eta_system`)
+
+---
+
+### Metod 1: Grafiskt i OMEdit (Detaljerat)
 
 ```
-1. Starta OMEdit
-2. File → Open → models/Examples/CompleteORCSystem.mo
-3. Klicka "Check Model" (kontrollera syntaxfel)
-4. Simulation → Simulation Setup:
+1. Starta OMEdit (via genväg eller Start-menyn)
+2. File → Open Model/Library
+3. Navigera till: C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelica_ORC\models\Examples\CompleteORCSystem.mo
+4. Klicka "Check Model" (kontrollera syntaxfel)
+5. Simulation → Simulation Setup:
    - Start time: 0
    - Stop time: 86400 (24 timmar)
    - Number of intervals: 1440
-5. Klicka "Simulate"
-6. Plotting → Välj variabler att plotta
+   - Tolerance: 1e-6
+6. Klicka "Simulate"
+7. Plotting → Välj variabler:
+   - W_net (netto effekt)
+   - eta_system (systemverkningsgrad)
+   - T_tank_top (tanktemperatur)
+   - Q_solar_input (solinstrålning)
 ```
 
 ### Metod 2: Med simuleringsscript
 
+**Windows:**
+```powershell
+cd "C:\Users\marte\OneDrive - Dala VS Värme & Sanitet\Privat\Simulering System\OpenModelica_ORC\simulations"
+omc run_simulation.mos
+```
+
+**Linux/macOS:**
 ```bash
 cd simulations
 omc run_simulation.mos
