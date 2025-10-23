@@ -1,0 +1,209 @@
+// =============================================================================
+// OpenModelica Simulation Script för ORC-systemet
+// =============================================================================
+// Detta script laddar modellen, kör simulering och genererar plots.
+//
+// Användning:
+//   omc run_simulation.mos
+//
+// eller i OMEdit:
+//   File → Open → run_simulation.mos
+//   Tools → Run Script
+// =============================================================================
+
+// Rensa arbetsyta
+clearVariables();
+
+// Ladda nödvändiga bibliotek
+print("Laddar Modelica Standard Library...\n");
+loadModel(Modelica, {"4.0.0"});
+
+// Ladda ORC-systemets modeller
+print("Laddar ORC-systemmodeller...\n");
+cd("..");
+loadFile("models/ORCSystem.mo");
+loadFile("models/Components/TeslaTurbineExpander.mo");
+loadFile("models/Components/Evaporator.mo");
+loadFile("models/Components/Condenser.mo");
+loadFile("models/Components/WorkingFluidPump.mo");
+loadFile("models/HeatSource/SolarCollector.mo");
+loadFile("models/HeatSource/StratifiedTank.mo");
+loadFile("models/Examples/CompleteORCSystem.mo");
+
+// Kontrollera modellen
+print("\nKontrollerar modell...\n");
+checkModel(ORCSystem.Examples.CompleteORCSystem);
+
+// Sätt upp simuleringsparametrar
+print("\nSätter upp simulering...\n");
+setCommandLineOptions({
+  "+d=initialization",
+  "+showErrorMessages"
+});
+
+// Kör simulering
+print("\n===============================================\n");
+print("STARTAR SIMULERING\n");
+print("Simuleringstid: 24 timmar (86400 sekunder)\n");
+print("===============================================\n\n");
+
+simulate(
+  ORCSystem.Examples.CompleteORCSystem,
+  startTime=0,
+  stopTime=86400,
+  numberOfIntervals=1440,  // En datapunkt per minut
+  tolerance=1e-6,
+  method="dassl"
+);
+
+print("\n===============================================\n");
+print("SIMULERING KLAR!\n");
+print("===============================================\n\n");
+
+// Kontrollera om simuleringen lyckades
+if resultFile == "" then
+  print("FEL: Simuleringen misslyckades!\n");
+  exit(1);
+else
+  print("Resultatfil: " + resultFile + "\n\n");
+end if;
+
+// =============================================================================
+// GENERERA PLOTS
+// =============================================================================
+
+print("Genererar plots...\n\n");
+
+// --------------------
+// PLOT 1: Effekter över tid
+// --------------------
+print("Plot 1: Effekter\n");
+plotVariables({
+  "Q_solar_input",
+  "W_net",
+  "W_turbine",
+  "W_pump"
+}, externalWindow=true, title="Effekter över 24 timmar");
+
+// --------------------
+// PLOT 2: Temperaturer
+// --------------------
+print("Plot 2: Temperaturer\n");
+plotVariables({
+  "T_tank_top",
+  "T_evap_out",
+  "T_turbine_out",
+  "T_cond_out",
+  "T_ambient"
+}, externalWindow=true, title="Temperaturer i systemet");
+
+// --------------------
+// PLOT 3: Verkningsgrader
+// --------------------
+print("Plot 3: Verkningsgrader\n");
+plotVariables({
+  "eta_system",
+  "eta_ORC",
+  "eta_turbine",
+  "eta_carnot"
+}, externalWindow=true, title="Verkningsgrader");
+
+// --------------------
+// PLOT 4: Energibalanser (ackumulerad)
+// --------------------
+print("Plot 4: Energibalanser\n");
+plotVariables({
+  "E_solar_collected",
+  "E_electrical_produced",
+  "E_stored_tank"
+}, externalWindow=true, title="Energibalanser (kumulativ)");
+
+// --------------------
+// PLOT 5: Tryck i ORC-kretsen
+// --------------------
+print("Plot 5: Tryck\n");
+plotVariables({
+  "p_high",
+  "p_low"
+}, externalWindow=true, title="Tryck i ORC-kretsen");
+
+// --------------------
+// PLOT 6: Tankens prestanda
+// --------------------
+print("Plot 6: Stratifierad tank\n");
+plotVariables({
+  "storageTank.SOC",
+  "storageTank.stratificationIndex",
+  "storageTank.Q_loss_total"
+}, externalWindow=true, title="Termisk lagring");
+
+// =============================================================================
+// SAMMANFATTNING AV RESULTAT
+// =============================================================================
+
+print("\n===============================================\n");
+print("RESULTAT - SAMMANFATTNING\n");
+print("===============================================\n\n");
+
+// Hämta sista värden från simuleringen
+val_E_solar := val(E_solar_collected, 86400);
+val_E_elec := val(E_electrical_produced, 86400);
+val_eta_avg := val_E_elec / val_E_solar * 100;
+val_specific := val_E_elec / (10 * 3600000);  // kWh/m² (10 m² kollektor)
+
+print("Total solenergi insamlad:     " + String(val_E_solar/1e6) + " MJ\n");
+print("Total el producerad:          " + String(val_E_elec/1e6) + " MJ\n");
+print("Genomsnittlig verkningsgrad:  " + String(val_eta_avg) + " %\n");
+print("Specifik energi:              " + String(val_specific) + " kWh/m²/dag\n\n");
+
+print("Max turbineffekt:             " + String(val(W_turbine, 86400)) + " W\n");
+print("Max netto effekt:             " + String(val(W_net, 86400)) + " W\n\n");
+
+print("Medel turbin verkningsgrad:   " + String(val(eta_turbine, 43200)*100) + " %\n");
+print("Max tanktemperatur:           " + String(val(T_tank_top, 43200)-273.15) + " °C\n\n");
+
+print("===============================================\n");
+print("FORSKNINGSFRÅGOR - SVAR\n");
+print("===============================================\n\n");
+
+print("1. SYSTEMVERKNINGSGRAD\n");
+print("   Hur effektivt omvandlas solenergi till el?\n");
+print("   Svar: " + String(val_eta_avg) + " %\n");
+print("   Jämförelse: Solceller ger ~15-20%, men ORC kan\n");
+print("               också utnyttja låggradlig spillvärme.\n\n");
+
+print("2. TESLA-TURBINENS PRESTANDA\n");
+print("   Isentropisk verkningsgrad?\n");
+print("   Svar: " + String(val(eta_turbine, 43200)*100) + " %\n");
+print("   Jämförelse: Konventionella expandrar: 80-85%\n");
+print("   Fördel: Enklare konstruktion, lägre kostnad\n\n");
+
+print("3. TERMISK LAGRING\n");
+print("   Hur mycket förbättrar tanken prestandan?\n");
+print("   Tanken möjliggör:\n");
+print("   - Kontinuerlig drift även utan sol\n");
+print("   - Jämnare effektuttag\n");
+print("   - Högre totalverkningsgrad\n\n");
+
+print("4. EKONOMI\n");
+print("   Energi per solfångararea?\n");
+print("   Svar: " + String(val_specific) + " kWh/m²/dag\n");
+print("   Vid elpris 2 kr/kWh: " + String(val_specific*2) + " kr/m²/dag\n\n");
+
+print("===============================================\n\n");
+
+print("Simulering och analys klar!\n");
+print("Resultatfiler finns i: simulations/\n\n");
+
+print("För mer detaljerade plots, kör Python-scriptet:\n");
+print("  python3 plot_results.py\n\n");
+
+// Exportera resultat till CSV för vidare analys
+print("Exporterar data till CSV...\n");
+csvFile := "simulation_results.csv";
+res := system("omc-diff -csv=" + csvFile + " " + resultFile);
+print("CSV-fil skapad: " + csvFile + "\n\n");
+
+print("===============================================\n");
+print("KLART!\n");
+print("===============================================\n");
